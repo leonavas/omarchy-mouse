@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "id": "leonavas.mouse",
+  "name": "Mouse",
+  "version": "1.0.0",
+  "author": "leonavas",
+  "license": "MIT",
+  "description": "The wireless mouse in the bar: how much battery it has left, and a slider for its pointer sensitivity behind a right click.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Mouse.qml"
+  },
+  "barWidget": {
+    "displayName": "Mouse",
+    "description": "Battery level for the wireless mouse, with a popup that carries a pointer-sensitivity slider. Left or right click opens it, middle click toggles the percentage, the wheel nudges sensitivity.",
+    "category": "Status",
+    "aliases": [
+      "mouse",
+      "pointer",
+      "cursor",
+      "sensitivity",
+      "speed",
+      "battery"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "glyph": "󰍽",
+      "absentGlyph": "󰍾",
+      "showPercentage": false,
+      "hideWhenAbsent": false,
+      "dimWhenAbsent": true,
+      "tintWhenLow": true,
+      "lowThreshold": 15,
+      "notifyLow": true,
+      "scope": "This mouse",
+      "deviceName": ""
+    },
+    "schema": [
+      {
+        "key": "glyph",
+        "type": "string",
+        "label": "Glyph",
+        "defaultValue": "󰍽",
+        "description": "Any Nerd Font character. Drawn in the bar while a mouse battery is being reported."
+      },
+      {
+        "key": "absentGlyph",
+        "type": "string",
+        "label": "Glyph while no battery is reported",
+        "defaultValue": "󰍾",
+        "description": "Shown when the mouse is off, asleep, or wired — the panel and its slider stay reachable behind it."
+      },
+      {
+        "key": "showPercentage",
+        "type": "boolean",
+        "label": "Show the percentage next to the glyph",
+        "defaultValue": false,
+        "description": "Middle click on the icon toggles this too. Hidden on a vertical bar, which has no room for it."
+      },
+      {
+        "key": "hideWhenAbsent",
+        "type": "boolean",
+        "label": "Remove the icon from the bar while no mouse battery is reported",
+        "defaultValue": false,
+        "description": "Off by default: with the icon always there, the sensitivity slider is always one right click away. UPower drops the device when a wireless mouse sleeps, so this makes the icon come and go through the day."
+      },
+      {
+        "key": "dimWhenAbsent",
+        "type": "boolean",
+        "label": "Dim the icon while no mouse battery is reported",
+        "defaultValue": true
+      },
+      {
+        "key": "tintWhenLow",
+        "type": "boolean",
+        "label": "Colour the icon while the battery is low",
+        "defaultValue": true,
+        "description": "Uses the theme's urgent colour, like the rest of the bar."
+      },
+      {
+        "key": "lowThreshold",
+        "type": "integer",
+        "label": "Low battery below (%)",
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "defaultValue": 15
+      },
+      {
+        "key": "notifyLow",
+        "type": "boolean",
+        "label": "Notify once when the battery gets low",
+        "defaultValue": true,
+        "description": "One toast per discharge: it re-arms after the mouse is charged back above the threshold."
+      },
+      {
+        "key": "scope",
+        "type": "enum",
+        "label": "What the slider moves",
+        "options": [
+          "This mouse",
+          "All pointers"
+        ],
+        "defaultValue": "This mouse",
+        "description": "\"This mouse\" writes a Hyprland per-device rule, leaving the touchpad and any second pointer on whatever input.lua gave them. \"All pointers\" writes input:sensitivity instead, which moves the touchpad along with the mouse."
+      },
+      {
+        "key": "deviceName",
+        "type": "string",
+        "label": "Hyprland device to write to",
+        "defaultValue": "",
+        "description": "Left empty, the pointer is guessed by matching `hyprctl devices` against the model name of the battery UPower is reporting. Set it to a name from `hyprctl devices` (e.g. logitech-x2-superstrike-1) to pin it — worth doing with two mice, or if Hyprland's -1 suffix shifts as devices are plugged in."
+      },
+      {
+        "key": "sensitivity",
+        "type": "number",
+        "label": "Sensitivity",
+        "min": -1,
+        "max": 1,
+        "step": 0.05,
+        "description": "The value the slider last set, from -1 (slowest) to +1 (fastest); 0 is the device's own default speed. Absent means the mouse follows the global input:sensitivity — the panel's Reset button puts it back."
+      }
+    ]
+  }
+}
