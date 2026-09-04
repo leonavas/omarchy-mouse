@@ -3,7 +3,7 @@
 A bar widget for the Omarchy shell: the wireless mouse's battery level in the
 bar, and a pointer-sensitivity slider behind a right click.
 
-![The mouse panel open above the bar](screenshot.png)
+![The mouse panel open above the bar](preview.png)
 
 ## What it does
 
@@ -128,6 +128,38 @@ omarchy plugin add https://github.com/leonavas/omarchy-mouse.git
 omarchy plugin enable leonavas.mouse --section right
 ```
 
+The widget lands in the bar's right section; `omarchy bar move leonavas.mouse
+--section center` puts it elsewhere.
+
+## Remove
+
+```bash
+omarchy plugin disable leonavas.mouse   # off the bar, files kept
+omarchy plugin remove leonavas.mouse    # deletes ~/.config/omarchy/plugins/leonavas.mouse/
+```
+
+Disabling drops the widget's entry — and with it the stored sensitivity — from
+`~/.config/omarchy/shell.json`. Nothing is left behind in `~/.config/hypr/`,
+because the widget never writes there: the sensitivity it applied lives only in
+Hyprland's live config state, which the next config reload discards. To hand the
+pointer back immediately, press **Reset** in the panel before removing the
+plugin, or run `hyprctl reload config-only` afterwards.
+
+## What it writes
+
+- `~/.config/omarchy/shell.json` — its own widget entry only, through the
+  shell's own `updateEntryInline` settings mechanism, and only in response to a
+  deliberate action: dragging the slider, pressing `−`/`+`, the wheel, or a
+  middle click. No other key and no other plugin's entry is touched.
+- **Hyprland's live config state**, through `hyprctl eval`. Your
+  `~/.config/hypr/*.lua` files are never read for writing and never modified,
+  so the value you set in `input.lua` stays the value Hyprland falls back to.
+  At startup and after a config reload the widget re-asserts only a sensitivity
+  you had already set yourself.
+
+Nothing else is written, nothing is read from the network, and no sudo or pkexec
+is required. External commands used: `hyprctl` and `notify-send`.
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
