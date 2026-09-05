@@ -99,6 +99,40 @@ function batteryIcon(fraction, charging, full) {
   return charging ? chargingIcons[index] : defaultIcons[index]
 }
 
+// Which alert a reading calls for: "critical" at or under the critical line,
+// "low" at or under the low line, "" otherwise. Only a discharging mouse is
+// ever low — one on the charger is on its way back up.
+function alertLevel(percent, discharging, lowThreshold, criticalThreshold) {
+  if (!discharging) return ""
+  var n = Number(percent)
+  if (!isFinite(n) || n <= 0) return ""
+  var low = Number(lowThreshold)
+  var critical = Math.min(low, Number(criticalThreshold))
+  if (n <= critical) return "critical"
+  if (n <= low) return "low"
+  return ""
+}
+
+// ------------------------------------------------------------------ theme
+
+// One "#rrggbb" out of the theme's colors.toml, by the first of `keys` that
+// is set. The shell exposes foreground/accent/urgent from that file but not
+// its yellow, and the low state wants the theme's own amber rather than a
+// hard-coded one. Same line shape the shell's Color.qml matches on.
+function themeColor(raw, keys, fallback) {
+  var wanted = keys || []
+  var found = {}
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var match = lines[i].match(/^\s*([A-Za-z0-9_-]+)\s*=\s*["']?(#[0-9A-Fa-f]{6})/)
+    if (match) found[match[1]] = match[2]
+  }
+  for (var k = 0; k < wanted.length; k++) {
+    if (found[wanted[k]]) return found[wanted[k]]
+  }
+  return fallback || ""
+}
+
 function stateLabel(device, states, full) {
   if (!device) return "Not connected"
   if (full) return "Fully charged"

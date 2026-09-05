@@ -10,8 +10,10 @@ bar, and a pointer-sensitivity slider behind a right click.
 - **Battery in the bar.** The charge level of the wireless mouse, read from
   UPower — which the kernel's HID++ driver feeds for Logitech's wireless mice.
   Optionally with the percentage next to the glyph.
-- **A low warning.** One notification per discharge when it drops below the
-  threshold, re-armed once the mouse is charged back above it.
+- **Two warnings.** At 15% the icon turns amber (the theme's yellow) and a
+  normal notification says to find the charger soon. At 5% it turns the theme's
+  urgent red and a critical notification stays on screen. Each fires once
+  per discharge and re-arms once the mouse is charged back above its line.
 - **A sensitivity slider.** Hyprland's pointer sensitivity, from -1 (slowest)
   to +1 (fastest), with `−` and `+` buttons at the ends of the track that step
   by 0.05. Applied live as you drag, so the pointer answers under your hand.
@@ -81,9 +83,10 @@ Set these in Setup > Plugins, or inline on the widget's entry in
 | `showPercentage` | `false` | Percentage next to the glyph (middle click toggles it) |
 | `hideWhenAbsent` | `false` | Drop the icon from the bar when no battery is reported |
 | `dimWhenAbsent` | `true` | Dim the icon instead of dropping it |
-| `tintWhenLow` | `true` | Paint the icon in the theme's urgent colour when low |
-| `lowThreshold` | `15` | Low battery below this percentage |
-| `notifyLow` | `true` | One notification per discharge |
+| `tintWhenLow` | `true` | Amber from the low threshold down, urgent red from the critical one down |
+| `lowThreshold` | `15` | Low battery below this percentage: amber, normal notification |
+| `criticalThreshold` | `5` | Critical battery below this percentage: urgent red, critical notification. Never above `lowThreshold` |
+| `notifyLow` | `true` | One low and one critical notification per discharge |
 | `scope` | `This mouse` | `This mouse` (per-device rule) or `All pointers` (`input:sensitivity`) |
 | `deviceName` | `""` | Pin the Hyprland device instead of guessing it |
 | `sensitivity` | absent | The value the slider last set. Absent means the mouse follows the global setting — the panel's **Reset** button puts it back there |
@@ -98,7 +101,7 @@ is at zero is off, and off means no device at all.
 - Hyprland, configured through Omarchy's Lua config (the `hl.*` API)
 - UPower, and a mouse whose battery it reports — `upower -e` should list a
   device such as `battery_hidpp_battery_0`
-- `notify-send`, for the low-battery warning only
+- `notify-send`, for the low- and critical-battery warnings only
 
 The sensitivity half works on any pointer Hyprland can name, with or without a
 battery. The battery half needs UPower to see the mouse; a wired mouse has
@@ -113,6 +116,9 @@ omarchy-shell leonavas.mouse pointer
 # What is it reading?
 omarchy-shell leonavas.mouse battery
 omarchy-shell leonavas.mouse sensitivity
+
+# Is it low or critical right now, and which colour is that?
+omarchy-shell leonavas.mouse alert        # e.g. "low #d9a83f", empty when fine
 
 # Nothing in the bar? Ask what UPower is actually publishing.
 omarchy-shell leonavas.mouse debugDevices
@@ -157,8 +163,10 @@ plugin, or run `hyprctl reload config-only` afterwards.
   At startup and after a config reload the widget re-asserts only a sensitivity
   you had already set yourself.
 
-Nothing else is written, nothing is read from the network, and no sudo or pkexec
-is required. External commands used: `hyprctl` and `notify-send`.
+Nothing else is written. The only file read outside its own entry is the
+current theme's `colors.toml`, for the amber of the low state. Nothing is read
+from the network, and no sudo or pkexec is required. External commands used:
+`hyprctl` and `notify-send`.
 
 ## License
 

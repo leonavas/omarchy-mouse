@@ -33,6 +33,10 @@ Panel {
   readonly property bool dimWhenAbsent: Model.truthy(setting("dimWhenAbsent", true), true)
   readonly property bool tintWhenLow: Model.truthy(setting("tintWhenLow", true), true)
   readonly property int lowThreshold: Math.max(0, Math.min(100, Number(setting("lowThreshold", 15))))
+  // Below this the tint turns from amber to the theme's urgent red and the
+  // notification goes critical. Never above the low threshold: red implies low.
+  readonly property int criticalThreshold: Math.min(root.lowThreshold,
+    Math.max(0, Math.min(100, Number(setting("criticalThreshold", 5)))))
   readonly property bool notifyLow: Model.truthy(setting("notifyLow", true), true)
   readonly property string pinnedDevice: String(setting("deviceName", ""))
   readonly property bool globalScope: String(setting("scope", "This mouse")) === "All pointers"
@@ -69,8 +73,22 @@ Panel {
   // HID++ level arrives afterwards, so every reconnect passes through 0%. A
   // mouse that really is at 0 is off, and off means no device at all.
   readonly property bool hasReading: root.hasBattery && root.device.ready !== false && root.percent > 0
-  readonly property bool low: root.hasReading && root.discharging && root.percent <= root.lowThreshold
+  readonly property string alertLevel: root.hasReading
+    ? Model.alertLevel(root.percent, root.discharging, root.lowThreshold, root.criticalThreshold)
+    : ""
+  readonly property bool low: root.alertLevel.length > 0
+  readonly property bool critical: root.alertLevel === "critical"
   readonly property string modelName: Model.deviceLabel(root.device, "")
+
+  // The colour the icon, the percentage and the charge bar turn once the
+  // battery is low: amber while there is still time, the theme's urgent red
+  // once it is about to switch off. Above the threshold they keep the bar's
+  // foreground, so the tint itself is the signal.
+  property string themeYellow: ""
+  readonly property color warning: root.themeYellow.length > 0 ? root.themeYellow : "#e0af68"
+  readonly property color alertColor: root.critical
+    ? root.bar.urgent
+    : (root.low ? root.warning : root.bar.foreground)
 
   // -------------------------------------------------------------- pointer
   // Hyprland's device list, and the one entry out of it the slider writes to.
@@ -84,12 +102,31 @@ Panel {
     : (root.pointerName.length > 0 ? root.pointerName : "no pointer found")
 
   // ---------------------------------------------------------------- state
-  // Notified-once latch for the low warning, so a mouse sitting at 14% does
-  // not toast every time UPower publishes a reading.
+  // Notified-once latches for the low and the critical warning, so a mouse
+  // sitting at 14% does not toast every time UPower publishes a reading.
   PersistentProperties {
     id: persisted
     reloadableId: "leonavas-mouse"
     property bool notifiedLow: false
+    property bool notifiedCritical: false
+  }
+
+  // The shell exposes foreground/accent/urgent from the theme but not its
+  // yellow, so the amber for the low state is read from the same colors.toml
+  // the shell reads. Re-read when the shell's palette moves, which is how a
+  // theme switch shows up from inside a plugin.
+  FileView {
+    id: themeColors
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/current/theme/colors.toml"
+    watchChanges: false
+    printErrors: false
+    onLoaded: root.themeYellow = Model.themeColor(text(), ["yellow", "bright_yellow"], "")
+    onLoadFailed: root.themeYellow = ""
+  }
+  Connections {
+    target: Color
+    function onForegroundChanged() { themeColors.reload() }
+    function onUrgentChanged() { themeColors.reload() }
   }
 
   // ------------------------------------------------------------- behavior
@@ -161,29 +198,49 @@ Panel {
     root.persist({ showPercentage: !root.showPercentage })
   }
 
+  // Two warnings per discharge: a normal-urgency heads-up at the low
+  // threshold, and a critical one — the kind that stays on screen — at the
+  // critical threshold. Each re-arms once the mouse is charged back above its
+  // own line, or as soon as it is plugged in.
   function checkLow() {
     if (!root.notifyLow || !root.hasReading) return
 
-    if (!root.low) {
-      // Recharged (or unplugged) past the threshold — arm the warning again.
-      if (root.percent > root.lowThreshold || root.charging) persisted.notifiedLow = false
-      return
-    }
+    if (!root.low && (root.percent > root.lowThreshold || root.charging)) persisted.notifiedLow = false
+    if (!root.critical && (root.percent > root.criticalThreshold || root.charging)) persisted.notifiedCritical = false
+    if (!root.low || notifyProc.running) return
 
-    if (persisted.notifiedLow || notifyProc.running) return
-    persisted.notifiedLow = true
-    notifyProc.command = [
-      "notify-send",
-      "--app-name=Mouse",
-      "--urgency=critical",
-      "--icon=input-mouse",
-      (root.modelName.length > 0 ? root.modelName : "Mouse") + " battery low",
-      root.percent + "% left — time to charge it."
-    ]
+    var name = root.modelName.length > 0 ? root.modelName : "Mouse"
+    if (root.critical) {
+      if (persisted.notifiedCritical) return
+      persisted.notifiedCritical = true
+      // The low warning has been overtaken; no point sending it afterwards.
+      persisted.notifiedLow = true
+      notifyProc.command = [
+        "notify-send",
+        "--app-name=Mouse",
+        "--urgency=critical",
+        "--expire-time=30000",
+        "--icon=battery-caution",
+        name + " battery critical",
+        root.percent + "% left — charge it now, it is about to switch off."
+      ]
+    } else {
+      if (persisted.notifiedLow) return
+      persisted.notifiedLow = true
+      notifyProc.command = [
+        "notify-send",
+        "--app-name=Mouse",
+        "--urgency=normal",
+        "--icon=input-mouse",
+        name + " battery running out",
+        root.percent + "% left — better to find that charger soon."
+      ]
+    }
     notifyProc.running = true
   }
 
   onLowChanged: root.checkLow()
+  onCriticalChanged: root.checkLow()
   onPercentChanged: root.checkLow()
 
   // A mouse that just woke up is a mouse Hyprland re-enumerated, so the
@@ -209,6 +266,7 @@ Panel {
     function togglePercentage(): void { root.togglePercentage() }
     function reapply(): void { root.reapply() }
     function battery(): string { return root.hasReading ? String(root.percent) : "" }
+    function alert(): string { return root.alertLevel.length > 0 ? root.alertLevel + " " + String(root.alertColor) : "" }
     function sensitivity(): string { return Model.formatSensitivity(root.sensitivity) }
     function pointer(): string { return root.scopeCaption }
 
@@ -301,6 +359,7 @@ Panel {
     }
     slotSize: Style.bar.iconSlot * (labelled ? 2 : 1)
     active: root.tintWhenLow && root.low
+    activeColor: root.alertColor
     dimmed: root.dimWhenAbsent && !root.hasBattery
     tooltipText: {
       if (!root.hasBattery) return "Mouse — no battery reported"
@@ -364,7 +423,7 @@ Panel {
             text: root.hasReading
               ? Model.batteryIcon(root.fraction, root.charging, root.full)
               : (root.hasBattery ? root.glyph : root.absentGlyph)
-            color: root.low ? root.bar.urgent : root.bar.foreground
+            color: root.alertColor
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.display
             anchors.left: parent.left
@@ -412,7 +471,7 @@ Panel {
           Text {
             id: heroPercent
             text: root.hasReading ? root.percent + "%" : "—"
-            color: root.low ? root.bar.urgent : root.bar.foreground
+            color: root.alertColor
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.displayLarge
             font.bold: true
@@ -441,7 +500,7 @@ Panel {
             anchors.verticalCenter: chargeTrack.verticalCenter
             height: chargeTrack.height
             radius: chargeTrack.radius
-            color: root.low ? root.bar.urgent : root.bar.foreground
+            color: root.alertColor
             width: Math.max(chargeTrack.height, chargeTrack.width * root.fraction)
 
             Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "leonavas.mouse",
   "name": "Mouse",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "leonavas",
   "license": "MIT",
   "description": "The wireless mouse in the bar: how much battery it has left, and a slider for its pointer sensitivity behind a right click.",
@@ -34,6 +34,7 @@
       "dimWhenAbsent": true,
       "tintWhenLow": true,
       "lowThreshold": 15,
+      "criticalThreshold": 5,
       "notifyLow": true,
       "scope": "This mouse",
       "deviceName": ""
@@ -78,7 +79,7 @@
         "type": "boolean",
         "label": "Colour the icon while the battery is low",
         "defaultValue": true,
-        "description": "Uses the theme's urgent colour, like the rest of the bar."
+        "description": "Amber (the theme's yellow) from the low threshold down, the theme's urgent colour from the critical threshold down."
       },
       {
         "key": "lowThreshold",
@@ -87,14 +88,25 @@
         "min": 0,
         "max": 100,
         "step": 1,
-        "defaultValue": 15
+        "defaultValue": 15,
+        "description": "The icon turns amber and a normal-urgency notification goes out."
+      },
+      {
+        "key": "criticalThreshold",
+        "type": "integer",
+        "label": "Critical battery below (%)",
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "defaultValue": 5,
+        "description": "The icon turns the theme's urgent colour and the notification goes critical. Never above the low threshold."
       },
       {
         "key": "notifyLow",
         "type": "boolean",
-        "label": "Notify once when the battery gets low",
+        "label": "Notify when the battery gets low and again when it gets critical",
         "defaultValue": true,
-        "description": "One toast per discharge: it re-arms after the mouse is charged back above the threshold."
+        "description": "Once per discharge each: a heads-up at the low threshold, a critical one that stays on screen at the critical threshold. Both re-arm after the mouse is charged back above their line."
       },
       {
         "key": "scope",
