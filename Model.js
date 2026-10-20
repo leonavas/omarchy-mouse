@@ -80,6 +80,32 @@ function mouseBattery(devices, types) {
   return best
 }
 
+// asus-battery.py's one line of JSON, or null when the receiver did not answer.
+function parseAsus(raw) {
+  try {
+    var data = JSON.parse(String(raw || "").trim() || "{}")
+    var percent = Number(data.percent)
+    if (!isFinite(percent) || percent <= 0 || percent > 100) return null
+    return { model: String(data.model || ""), percent: percent, charging: !!data.charging }
+  } catch (e) {
+    return null
+  }
+}
+
+// A receiver reading dressed as a UPowerDevice, so the rest of the widget
+// needs no second code path. `states` carries the UPowerDeviceState values.
+function asusBattery(reading, states) {
+  if (!reading) return null
+  return {
+    model: reading.model,
+    percentage: reading.percent / 100,
+    state: reading.charging ? states.Charging : states.Discharging,
+    ready: true,
+    isPresent: true,
+    powerSupply: false
+  }
+}
+
 // Quickshell's UPowerDevice.percentage is already a 0..1 fraction, not a
 // 0..100 number — the same scale the first-party power panel reads.
 function batteryFraction(device) {

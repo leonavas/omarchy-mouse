@@ -1,0 +1,8 @@
+# ASUS ROG wireless mice: let the logged-in user query the mouse's battery
+# over hidraw (see asus-battery.py). A mouse on its cable enumerates under a
+# second product id, so each mouse takes two lines. Find the ids with
+# `grep HID_ID /sys/class/hidraw/hidraw*/device/uevent`.
+#
+# ROG Gladius III Wireless: 2.4 GHz receiver, then the mouse on its cable
+KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="197f", TAG+="uaccess"
+KERNEL=="hidraw*", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="197d", TAG+="uaccess"

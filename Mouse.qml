@@ -17,6 +17,9 @@ import "Model.js" as Model
 // device list against the model string of the battery UPower is reporting, so
 // the widget speaks for one physical mouse rather than for whatever pointer
 // happened to enumerate first.
+//
+// ASUS ROG wireless mice have no kernel driver to feed UPower, so for them the
+// battery comes from asus-battery.py, which queries the receiver over hidraw.
 Panel {
   id: root
   moduleName: "leonavas.mouse"
@@ -58,8 +61,17 @@ Panel {
   readonly property var device: {
     var list = UPower.devices ? (UPower.devices.values || []) : []
     // Gaming mice sometimes land under GamingInput rather than Mouse.
-    return Model.mouseBattery(list, [UPowerDeviceType.Mouse, UPowerDeviceType.GamingInput])
+    var upower = Model.mouseBattery(list, [UPowerDeviceType.Mouse, UPowerDeviceType.GamingInput])
+    if (upower) return upower
+    // ASUS ROG mice never reach UPower: no kernel driver reports their
+    // battery. asus-battery.py asks the receiver directly, and its reading is
+    // shaped like a UPower device so everything below reads it the same way.
+    return Model.asusBattery(root.asusReading, {
+      Charging: UPowerDeviceState.Charging,
+      Discharging: UPowerDeviceState.Discharging
+    })
   }
+  property var asusReading: null
   readonly property bool hasBattery: !!root.device
   readonly property real fraction: Model.batteryFraction(root.device)
   readonly property int percent: Math.round(root.fraction * 100)
@@ -274,6 +286,10 @@ Panel {
     // and the question is whether the mouse is missing or merely unreadable.
     // This is the call that caught `percentage` being a 0..1 fraction rather
     // than a 0..100 number.
+    function debugAsus(): string {
+      return JSON.stringify({ command: asusProc.command, running: asusProc.running,
+                              reading: root.asusReading })
+    }
     function debugDevices(): string {
       var list = UPower.devices ? (UPower.devices.values || []) : []
       var out = []
@@ -337,6 +353,25 @@ Panel {
   }
 
   Process { id: notifyProc }
+
+  // The receiver is not something UPower watches, so it is polled. A minute is
+  // far finer than a mouse battery moves, and the query is a single report.
+  Timer {
+    interval: 60000
+    running: true
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: if (!asusProc.running) asusProc.running = true
+  }
+
+  Process {
+    id: asusProc
+    command: ["python3", "-I", Qt.resolvedUrl("asus-battery.py").toString().replace(/^file:\/\//, "")]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.asusReading = Model.parseAsus(text)
+    }
+  }
 
   // --------------------------------------------------------------- widget
   readonly property bool shown: root.hasBattery || !root.hideWhenAbsent

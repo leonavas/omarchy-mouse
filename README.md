@@ -9,6 +9,8 @@ bar, and a pointer-sensitivity slider behind a right click.
 
 - **Battery in the bar.** The charge level of the wireless mouse, read from
   UPower — which the kernel's HID++ driver feeds for Logitech's wireless mice.
+  ASUS ROG wireless mice, which no kernel driver reports, are read straight
+  from their receiver instead (see [ASUS ROG mice](#asus-rog-mice)).
   Optionally with the percentage next to the glyph.
 - **Two warnings.** At 15% the icon turns amber (the theme's yellow) and a
   normal notification says to find the charger soon. At 5% it turns the theme's
@@ -71,6 +73,32 @@ under `~/.config/hypr`. The widget listens for Hyprland's `configreloaded`
 event and re-asserts the value, so the slider does not quietly lose its
 setting a few times a day.
 
+## ASUS ROG mice
+
+No kernel driver hands an ASUS ROG wireless mouse's battery to UPower, so
+`upower -e` lists nothing for it. When UPower has no mouse, the widget runs
+`asus-battery.py` once a minute: it finds the ASUS receiver's vendor interface
+(the hidraw node whose report descriptor opens on usage page `0xFF01`), sends
+the `0x12 0x07` battery query Armoury Crate uses, and reads the level from
+byte 4 of the echo, the voltage from bytes 7–8 and the cable flag from byte 9.
+The reading is shaped like a UPower device, so thresholds, tint and
+notifications behave exactly as they do for a Logitech mouse.
+
+The receiver's hidraw node is root-only by default. Install the udev rule
+once, which hands it to the logged-in user:
+
+```bash
+sudo cp ~/.config/omarchy/plugins/leonavas.mouse/udev/70-asus-rog-mouse.rules /etc/udev/rules.d/
+sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=hidraw
+```
+
+The rule lists the ROG Gladius III Wireless: its receiver (`0b05:197f`) and
+the mouse itself on its cable (`0b05:197d`), which enumerates as a separate
+device and answers the same query with the charging flag set. Other ROG mice
+likely speak the same protocol; add lines with their product ids.
+A sleeping mouse does not answer, so the icon dims until the next poll after
+it wakes.
+
 ## Settings
 
 Set these in Setup > Plugins, or inline on the widget's entry in
@@ -100,7 +128,8 @@ is at zero is off, and off means no device at all.
 
 - Hyprland, configured through Omarchy's Lua config (the `hl.*` API)
 - UPower, and a mouse whose battery it reports — `upower -e` should list a
-  device such as `battery_hidpp_battery_0`
+  device such as `battery_hidpp_battery_0` — or an ASUS ROG wireless mouse,
+  `python3`, and the udev rule from [ASUS ROG mice](#asus-rog-mice)
 - `notify-send`, for the low- and critical-battery warnings only
 
 The sensitivity half works on any pointer Hyprland can name, with or without a
@@ -122,6 +151,10 @@ omarchy-shell leonavas.mouse alert        # e.g. "low #d9a83f", empty when fine
 
 # Nothing in the bar? Ask what UPower is actually publishing.
 omarchy-shell leonavas.mouse debugDevices
+
+# ASUS ROG mouse: what did the receiver answer?
+omarchy-shell leonavas.mouse debugAsus
+python3 ~/.config/omarchy/plugins/leonavas.mouse/asus-battery.py
 
 # Re-assert the stored sensitivity by hand.
 omarchy-shell leonavas.mouse reapply
@@ -165,8 +198,10 @@ plugin, or run `hyprctl reload config-only` afterwards.
 
 Nothing else is written. The only file read outside its own entry is the
 current theme's `colors.toml`, for the amber of the low state. Nothing is read
-from the network, and no sudo or pkexec is required. External commands used:
-`hyprctl` and `notify-send`.
+from the network, and no sudo or pkexec is required at runtime (the ASUS udev
+rule is a one-time, opt-in install). External commands used: `hyprctl`,
+`notify-send`, and `python3` for the ASUS receiver query, which sends the
+receiver one read-only battery request and nothing else.
 
 ## License
 
